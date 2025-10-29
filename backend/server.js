@@ -1,0 +1,32 @@
+express = require('express')
+const app = express()
+const dotenv = require('dotenv')
+dotenv.config()
+const cors = require('cors')
+const TakeDocs = require('./takeDocs/takeDocs.controller')
+const PORT = 8080
+
+const start = async () => {
+    try {
+        app.use(cors({
+            origin: 'http://localhost:3000', // порт, где работает твой React
+            methods: ['GET', 'POST', 'PUT', 'DELETE'],
+            credentials: true
+        }));
+        app.use(express.json())
+        app.use(express.urlencoded({ extended: true }))
+        
+        app.use(TakeDocs)
+        app.get('/', (req, res) => {
+            res.send('Server is running!')
+        })
+        
+        app.listen(PORT, () => {
+            console.log(`http://localhost:${PORT}`)
+        })
+    } catch (e) {
+        console.log(e)
+    }
+}
+
+start()

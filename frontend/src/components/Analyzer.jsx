@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { use, useEffect, useState } from 'react';
 import FileUpload from './FileUpload';
+// библиотека для хеширования имен файлов
+import CryptoJS from "crypto-js";
 
 function Analyzer() {
   const [coreFile, setCoreFile] = useState(null);
+  const [coreFileText, setCoreFileText] = useState(null);
   const [additionalFiles, setAdditionalFiles] = useState([]);
+  const [uploadedData, setUploadedData] = useState(false);
 
-  const handleCoreFileChange = (file) => {
+  const handleCoreFileChange = (file, text) => {
     setCoreFile(file);
+    setCoreFileText(text);
     console.log("Загружен основной файл:", file?.name);
   };
 
@@ -21,9 +26,40 @@ function Analyzer() {
       alert("Пожалуйста, загрузите основной файл.");
       return;
     }
-    alert(`Анализ запущен! Основной файл: ${coreFile.name}, Доп. файлов: ${additionalFiles.length}`);
-    // Здесь можно отправить данные на сервер или обработать локально
+    // меняю состояние для триггера useEffect
+    else {
+      setUploadedData(true)
+    }
   };
+
+  // Отправка файлов на сервер
+  useEffect(() => {
+    if (uploadedData) {
+      try {
+        // подготовка данных основного файла
+        const coreFileData = {
+          "id": CryptoJS.SHA256(coreFile.name).toString(CryptoJS.enc.Hex),
+          "text": coreFileText,
+          "is_root": true
+        }
+        fetch('http://localhost:8080/api/takeDocs', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(coreFileData),
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log('Успех:', data);
+        })
+        .catch((error) => {
+          console.error('Ошибка:', error);
+        });
+        console.log(coreFileData);
+      } catch (error) {
+        console.error("Ошибка при отправке файлов:", error);
+      }
+    }
+  }, [uploadedData]);
 
   return (
     <div className="analyzer-container">
