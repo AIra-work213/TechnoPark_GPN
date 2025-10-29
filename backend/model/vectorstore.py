@@ -13,10 +13,10 @@ class SummaryDB:
             embedding_function=embed_func,
             persist_directory="./SummaryDB"
         )
-    def add_documents(self, docs, metadatas):
-        self.vectorDB_summary.add_documents(docs, metadatas)
-    def search_documents(self, query):
-        results = self.vectorDB_summary.similarity_search_score(query, k=4)
+    def add_documents(self, doc: str, metadatas: dict):
+        self.vectorDB_summary.add_texts([doc], [metadatas])
+    def search_documents(self, query, filter):
+        results = self.vectorDB_summary.similarity_search_with_score(query, k=4, filter=filter)
         return results
 
 class ExtraInfoDB:
@@ -28,9 +28,9 @@ class ExtraInfoDB:
             embedding_function=embed_func,
             persist_directory="./ExtraInfoDB"
         )
-    def add_documents(self, docs, metadatas):
-        self.vectorDB_extrainfo.add_documents(docs, metadatas)
+    def add_documents(self, doc: str, metadatas: dict):
+        self.vectorDB_extrainfo.add_texts([doc], [metadatas])
         return 'Успешно!'
-    def search_documents(self, query):
-        results = self.vectorDB_extrainfo.similarity_search_score(query, k=2)
+    def search_documents(self, query, filter):
+        results = self.vectorDB_extrainfo.similarity_search_with_score(query, k=4, filter=filter)
         return results

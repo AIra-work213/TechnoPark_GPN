@@ -19,7 +19,7 @@ class YandexLLM:
 Не выдумывай лишнего, твоя задача искать связь опираясь на текст.
 Возможно во всех документах отсутствует причина, тогда постарайся предположить на основе имеющихся данных.
 """
-    def generate_response(self, context, history):
+    def generate_response(self, context, history=""):
         result = self.model.run([
             {"role": "system", "text": self.prompt},
             {"role": "user", "text": f"\nТекст 1: {context[0]}\nТекст 2: {context[1]}\nИстория рассуждений: {history}"}
