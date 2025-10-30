@@ -1,70 +1,152 @@
-import React, { use, useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import FileUpload from './FileUpload';
-// библиотека для хеширования имен файлов
 import CryptoJS from "crypto-js";
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
 function Analyzer() {
-  const [coreFile, setCoreFile] = useState(null);
-  const [coreFileText, setCoreFileText] = useState(null);
-  const [additionalFiles, setAdditionalFiles] = useState([]);
-  const [uploadedData, setUploadedData] = useState(false);
+  const [coreDocument, setCoreDocument] = useState(null);
+  const [supportingDocuments, setSupportingDocuments] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [jobId, setJobId] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(null);
 
-  const handleCoreFileChange = (file, text) => {
-    setCoreFile(file);
-    setCoreFileText(text);
-    console.log("Загружен основной файл:", file?.name);
+  const hasFilesForAnalysis = useMemo(
+    () => Boolean(coreDocument?.file) || supportingDocuments.length > 0,
+    [coreDocument, supportingDocuments]
+  );
+
+  const buildDocumentPayload = (entry, isRoot) => {
+    const { file, text } = entry;
+    return {
+      id: CryptoJS.SHA256(`${file.name}-${file.size}-${file.lastModified}-${isRoot}`).toString(CryptoJS.enc.Hex),
+      doc_name: file.name,
+      summary: "",
+      extrainfo: "",
+      text: text || "",
+      is_root: isRoot,
+      is_visited: false,
+    };
   };
 
-  const handleAdditionalFilesChange = (files) => {
-    setAdditionalFiles(Array.from(files));
-    console.log("Загружены дополнительные файлы:", files);
+  const handleCoreFileChange = (entry) => {
+    if (!entry || !entry.file) {
+      setCoreDocument(null);
+      return;
+    }
+    setCoreDocument(entry);
+    console.log("Загружен основной файл:", entry.file.name);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!coreFile) {
+  const handleAdditionalFilesChange = (entries) => {
+    const list = entries || [];
+    setSupportingDocuments(list);
+    console.log("Загружены дополнительные файлы:", list.map((item) => item.file.name));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!coreDocument?.file) {
       alert("Пожалуйста, загрузите основной файл.");
       return;
     }
-    // меняю состояние для триггера useEffect
-    else {
-      setUploadedData(true)
+
+    setErrorMessage('');
+    setStatusMessage('Отправляем документы на анализ...');
+    setAnalysisResult(null);
+    setIsSubmitting(true);
+
+    const payload = [
+      buildDocumentPayload(coreDocument, true),
+      ...supportingDocuments.map((entry) => buildDocumentPayload(entry, false)),
+    ];
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/takeDocs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documents: payload }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Сервер вернул статус ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data?.jobId) {
+        throw new Error('Не удалось получить идентификатор задачи');
+      }
+
+      setJobId(data.jobId);
+      setStatusMessage('Документы отправлены. Ожидаем результат...');
+    } catch (error) {
+      console.error('Ошибка при отправке файлов:', error);
+      setErrorMessage('Не удалось отправить данные на сервер. Попробуйте позже.');
+      setIsSubmitting(false);
+      setStatusMessage('');
     }
   };
 
-  // Отправка файлов на сервер
   useEffect(() => {
-    if (uploadedData) {
-      try {
-        // подготовка данных основного файла
-        const coreFileData = {
-          id: CryptoJS.SHA256(coreFile.name).toString(CryptoJS.enc.Hex),
-          doc_name: coreFile.name,
-          summary: "",
-          extrainfo: "",
-          text: coreFileText,
-          is_root: true,
-          is_visited: false
-        }
-        
-        fetch('http://localhost:8080/api/takeDocs', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(coreFileData),
-        })
-        .then(response => response.json())
-        .then(data => {
-          console.log('Успех:', data);
-        })
-        .catch((error) => {
-          console.error('Ошибка:', error);
-        });
-        console.log(coreFileData);
-      } catch (error) {
-        console.error("Ошибка при отправке файлов:", error);
-      }
+    if (!jobId) {
+      return undefined;
     }
-  }, [uploadedData]);
+
+    let isCancelled = false;
+
+    const pollIntervalMs = 4000;
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/takeDocs/${jobId}`);
+        if (!response.ok) {
+          throw new Error(`Сервер вернул статус ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (isCancelled) {
+          return;
+        }
+
+        if (data.status === 'completed') {
+          setAnalysisResult(data.result);
+          setStatusMessage('Анализ завершен');
+          setIsSubmitting(false);
+          setJobId(null);
+        } else if (data.status === 'error') {
+          setErrorMessage(data.error || 'Во время анализа произошла ошибка.');
+          setStatusMessage('Анализ завершен с ошибкой');
+          setIsSubmitting(false);
+          setJobId(null);
+        } else {
+          const statusText = data.status === 'processing'
+            ? 'Анализ выполняется...'
+            : 'Задача ожидает обработки...';
+          setStatusMessage(statusText);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Ошибка при получении статуса задачи:', error);
+          setErrorMessage('Не удалось получить статус анализа. Попробуйте позже.');
+          setIsSubmitting(false);
+          setJobId(null);
+          setStatusMessage('');
+        }
+      }
+    };
+
+    const intervalId = setInterval(fetchStatus, pollIntervalMs);
+    fetchStatus();
+
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [jobId]);
 
   return (
     <div className="analyzer-container">
@@ -87,9 +169,15 @@ function Analyzer() {
           />
         </div>
 
-        <button className={`analyze-button ${coreFile || additionalFiles.length > 0 ? 'loaded' : ''}`} onClick={handleSubmit}> {/* (изменённая строка) добавлен класс loaded если загружен хотя бы один файл */}
-          <span className="icon">🤖</span> Анализ с помощью ИИ
+        <button
+          className={`analyze-button ${hasFilesForAnalysis ? 'loaded' : ''}`}
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+        >
+          <span className="icon">🤖</span> {isSubmitting ? 'Анализируем...' : 'Анализ с помощью ИИ'}
         </button>
+
+        {errorMessage && <p className="error-message">{errorMessage}</p>}
       </div>
 
       <div className="right-panel">
@@ -101,6 +189,14 @@ function Analyzer() {
           <p>
             Заполните сведения об инциденте и нажмите «Анализ с помощью ИИ», чтобы получить анализ переорганизации и рекомендации.
           </p>
+          {jobId && <p className="status-message">ID задачи: {jobId}</p>}
+          {statusMessage && <p className="status-message">{statusMessage}</p>}
+          {analysisResult && (
+            <div className="analysis-result">
+              <h5>Результат анализа</h5>
+              <pre>{JSON.stringify(analysisResult, null, 2)}</pre>
+            </div>
+          )}
         </div>
       </div>
     </div>

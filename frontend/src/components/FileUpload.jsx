@@ -2,46 +2,89 @@ import React, { useState } from 'react';
 // библиотека для чтения docx файлов
 import mammoth from "mammoth";
 
+const getFileLabel = (files) => {
+  if (!files.length) {
+    return '';
+  }
+  if (files.length === 1) {
+    return files[0].name;
+  }
+  return `${files.length} файлов`;
+};
+
+const extractTextFromFile = (file) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+
+    const fallback = () => resolve('');
+
+    if (file.name.toLowerCase().endsWith('.docx')) {
+      reader.onload = async (event) => {
+        try {
+          const { value } = await mammoth.extractRawText({ arrayBuffer: event.target.result });
+          resolve(value || '');
+        } catch (error) {
+          console.error('Ошибка при чтении docx:', error);
+          fallback();
+        }
+      };
+      reader.onerror = (error) => {
+        console.error('Ошибка чтения файла:', error);
+        fallback();
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = (event) => {
+        resolve(event.target?.result?.toString() || '');
+      };
+      reader.onerror = (error) => {
+        console.error('Ошибка чтения файла:', error);
+        fallback();
+      };
+      reader.readAsText(file);
+    }
+  });
+};
+
 function FileUpload({ label, onChange, multiple = false, accept }) {
-  const [textContent, setTextContent] = useState("");
-  // (новая строка) состояние для имени файла
-  const [fileName, setFileName] = useState('');
+  const [fileLabel, setFileLabel] = useState('');
 
-  const handleChange = (e) => {
-    const files = e.target.files;
+  const handleChange = async (event) => {
+    const files = Array.from(event.target.files || []);
 
-    if (files.length > 0) {
-      // (новая строка) сохраняем имя файла
-      setFileName(files[0].name);
+    if (!files.length) {
+      setFileLabel('');
+      onChange(multiple ? [] : null);
+      return;
     }
 
-    // обработка текста в файле с помощью mammoth
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        // обработка текста
-        const arrayBuffer = e.target.result;
-        const { value } = await mammoth.extractRawText({ arrayBuffer });
-        setTextContent(value);
+    setFileLabel(getFileLabel(files));
 
-        if (multiple) {
-          onChange(files, value);
-        } else {
-          onChange(files[0] || null, value);
-        }
-      } catch (error) {
-        console.error("Ошибка при чтении:", error);
+    try {
+      if (multiple) {
+        const processed = await Promise.all(
+          files.map(async (file) => ({
+            file,
+            text: await extractTextFromFile(file),
+          }))
+        );
+        onChange(processed);
+      } else {
+        const file = files[0];
+        const text = await extractTextFromFile(file);
+        onChange({ file, text });
       }
-    };
-    // Читаем как ArrayBuffer (типо текста)
-    reader.readAsArrayBuffer(files[0]);
+    } catch (error) {
+      console.error('Ошибка при обработке файлов:', error);
+      onChange(multiple ? [] : null);
+    }
   };
 
   return (
     <div className="file-upload">
       <label className="upload-label">{label}</label>
       {/* (изменённая строка) добавлено условие для отображения имени файла и стилизации */}
-      <div className={`file-input-container ${fileName ? 'loaded' : ''}`}>
+      <div className={`file-input-container ${fileLabel ? 'loaded' : ''}`}>
         <input
           type="file"
           onChange={handleChange}
@@ -49,7 +92,7 @@ function FileUpload({ label, onChange, multiple = false, accept }) {
           accept={accept}
           className="file-input"
         />
-        {fileName && <span className="file-name">{fileName}</span>}
+        {fileLabel && <span className="file-name">{fileLabel}</span>}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-python3 -m uvicorn model.functions:app --host 0.0.0.0 --port 8000 &
+python -m uvicorn model.functions:app --host 127.0.0.1 --port 8000 &
 UVICORN_PID=$!
 
 node server.js &

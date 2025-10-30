@@ -44,7 +44,7 @@ class ExtraInfoDB:
         return "Успешно!"
     
     def search_documents(self, query, filter):
-        results = self.vectorDB_extrainfo.similarity_search_with_score(query, k=4, filter=filter)
+        results = self.vectorDB_extrainfo.similarity_search_with_score(query, k=20, filter=filter)
         return results
     
     def mark_visited(self, doc_ids: list[str]):
