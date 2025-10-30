@@ -87,7 +87,7 @@ function Analyzer() {
           />
         </div>
 
-        <button className="analyze-button" onClick={handleSubmit}>
+        <button className={`analyze-button ${coreFile || additionalFiles.length > 0 ? 'loaded' : ''}`} onClick={handleSubmit}> {/* (изменённая строка) добавлен класс loaded если загружен хотя бы один файл */}
           <span className="icon">🤖</span> Анализ с помощью ИИ
         </button>
       </div>
