@@ -38,10 +38,15 @@ function Analyzer() {
       try {
         // подготовка данных основного файла
         const coreFileData = {
-          "id": CryptoJS.SHA256(coreFile.name).toString(CryptoJS.enc.Hex),
-          "text": coreFileText,
-          "is_root": true
+          id: CryptoJS.SHA256(coreFile.name).toString(CryptoJS.enc.Hex),
+          doc_name: coreFile.name,
+          summary: "",
+          extrainfo: "",
+          text: coreFileText,
+          is_root: true,
+          is_visited: false
         }
+        
         fetch('http://localhost:8080/api/takeDocs', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},

@@ -9,12 +9,14 @@ const PORT = 8080
 const start = async () => {
     try {
         app.use(cors({
-            origin: 'http://localhost:3000', // порт, где работает твой React
+            origin: 'http://localhost:3000',
             methods: ['GET', 'POST', 'PUT', 'DELETE'],
             credentials: true
         }));
         app.use(express.json())
         app.use(express.urlencoded({ extended: true }))
+
+        app.locals.sharedData = {}
         
         app.use(TakeDocs)
         app.get('/', (req, res) => {
