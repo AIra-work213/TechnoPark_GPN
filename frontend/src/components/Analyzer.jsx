@@ -15,9 +15,9 @@ function Analyzer() {
     console.log("Загружен основной файл:", file?.name);
   };
 
-  const handleAdditionalFilesChange = (files) => {
-    setAdditionalFiles(Array.from(files));
-    console.log("Загружены дополнительные файлы:", files);
+  const handleAdditionalFilesChange = (files, text) => {
+    setAdditionalFiles([files, text]);
+    console.log("Загружены дополнительные файлы:", [files, text]);
   };
 
   const handleSubmit = (e) => {
@@ -37,29 +37,43 @@ function Analyzer() {
     if (uploadedData) {
       try {
         // подготовка данных основного файла
-        const coreFileData = {
-          id: CryptoJS.SHA256(coreFile.name).toString(CryptoJS.enc.Hex),
-          doc_name: coreFile.name,
-          summary: "",
-          extrainfo: "",
-          text: coreFileText,
-          is_root: true,
-          is_visited: false
-        }
+        const filesData = ([
+          {
+            "id": CryptoJS.SHA256(coreFile.name).toString(CryptoJS.enc.Hex),
+            "doc_name": coreFile.name,
+            "summary": "",
+            "extrainfo": "",
+            "text": coreFileText,
+            "is_root": true,
+            "is_visited": false
+          }
+        ])
+        console.log("1:",additionalFiles[0])
+        additionalFiles[0].forEach(element => {
+          filesData.push({
+            "id": CryptoJS.SHA256(element.name).toString(CryptoJS.enc.Hex),
+            "doc_name": element.name,
+            "summary": "",
+            "extrainfo": "",
+            "text": additionalFiles[1][additionalFiles[0].indexOf(element)],
+            "is_root": false,
+            "is_visited": false
+          })
+        })
         
         fetch('http://localhost:8080/api/takeDocs', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(coreFileData),
+          body: JSON.stringify(filesData),
         })
         .then(response => response.json())
         .then(data => {
-          console.log('Успех:', data);
+          console.log('Ответ:', data);
         })
         .catch((error) => {
           console.error('Ошибка:', error);
         });
-        console.log(coreFileData);
+        console.log(filesData);
       } catch (error) {
         console.error("Ошибка при отправке файлов:", error);
       }

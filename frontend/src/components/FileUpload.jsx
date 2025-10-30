@@ -1,40 +1,56 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 // библиотека для чтения docx файлов
 import mammoth from "mammoth";
 
 function FileUpload({ label, onChange, multiple = false, accept }) {
-  const [textContent, setTextContent] = useState("");
   // (новая строка) состояние для имени файла
   const [fileName, setFileName] = useState('');
+  const [fileText, setFileText] = useState('');
 
-  const handleChange = (e) => {
-    const files = e.target.files;
+  const handleChange = async (e) => {
+    const files = Array.from(e.target.files);
+    console.log("Выбранные файлы:", files);
 
     if (files.length > 0) {
-      // (новая строка) сохраняем имя файла
-      setFileName(files[0].name);
+      setFileName(files.map(f => f.name).join(", "));
     }
 
-    // обработка текста в файле с помощью mammoth
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        // обработка текста
-        const arrayBuffer = e.target.result;
-        const { value } = await mammoth.extractRawText({ arrayBuffer });
-        setTextContent(value);
+    try {
+      // создаём массив промисов для чтения всех файлов
+      const readPromises = files.map(file => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
 
-        if (multiple) {
-          onChange(files, value);
-        } else {
-          onChange(files[0] || null, value);
-        }
-      } catch (error) {
-        console.error("Ошибка при чтении:", error);
+          reader.onload = async (event) => {
+            try {
+              const arrayBuffer = event.target.result;
+              const { value } = await mammoth.extractRawText({ arrayBuffer });
+              resolve(value);
+            } catch (error) {
+              reject(error);
+            }
+          };
+
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(file);
+        });
+      });
+
+      // ждём, пока все файлы обработаются
+      const allTexts = await Promise.all(readPromises);
+      setFileText(allTexts);
+      console.log("Все тексты:", allTexts);
+
+      // передаём дальше в родительский компонент
+      if (multiple) {
+        onChange(files, allTexts);
+      } else {
+        onChange(files[0] || null, allTexts[0] || "");
       }
-    };
-    // Читаем как ArrayBuffer (типо текста)
-    reader.readAsArrayBuffer(files[0]);
+
+    } catch (error) {
+      console.error("Ошибка при чтении файлов:", error);
+    }
   };
 
   return (
