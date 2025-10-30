@@ -65,7 +65,7 @@ def get_docs(docs: list[Document]):
             K_weight = K_weight[:2]
 
             if len(K_weight) < 2:
-                response = super_model.generate_answer(context=[doc[1]['text'] for doc in K_weight], history=history, conclusions=res["useful_info"] if res else "")
+                response = super_model.generate_answer(context=[doc[1]['text'] for doc in K_weight], history=history , conclusions=res["useful_info"] if res else "")
                 res = json.loads(response)
                 return res
 
